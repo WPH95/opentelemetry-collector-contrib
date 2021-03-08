@@ -31,4 +31,69 @@ func TestMain(m *testing.M) {
 	testbed.DoTestMain(m, contribPerfResultsSummary)
 }
 
-// This file is left with no tests as a placeholder for future unstable exe tests
+func TestLog10kDPS(t *testing.T) {
+	tests := []struct {
+		name         string
+		sender       testbed.DataSender
+		receiver     testbed.DataReceiver
+		resourceSpec testbed.ResourceSpec
+		extensions   map[string]string
+	}{
+		{
+			name:     "OTLP",
+			sender:   testbed.NewOTLPLogsDataSender(testbed.DefaultHost, testbed.GetAvailablePort(t)),
+			receiver: testbed.NewOTLPDataReceiver(testbed.GetAvailablePort(t)),
+			resourceSpec: testbed.ResourceSpec{
+				ExpectedMaxCPU: 20,
+				ExpectedMaxRAM: 80,
+			},
+		},
+		{
+			name:     "filelog",
+			sender:   datasenders.NewFileLogWriter(),
+			receiver: testbed.NewOTLPDataReceiver(testbed.GetAvailablePort(t)),
+			resourceSpec: testbed.ResourceSpec{
+				ExpectedMaxCPU: 50,
+				ExpectedMaxRAM: 150,
+			},
+		},
+		{
+			name:     "syslog-tcp-batch-1",
+			sender:   datasenders.NewSyslogWriter("tcp", testbed.DefaultHost, testbed.GetAvailablePort(t), 1),
+			receiver: testbed.NewOTLPDataReceiver(testbed.GetAvailablePort(t)),
+			resourceSpec: testbed.ResourceSpec{
+				ExpectedMaxCPU: 80,
+				ExpectedMaxRAM: 150,
+			},
+		},
+		{
+			name:     "syslog-tcp-batch-100",
+			sender:   datasenders.NewSyslogWriter("tcp", testbed.DefaultHost, testbed.GetAvailablePort(t), 100),
+			receiver: testbed.NewOTLPDataReceiver(testbed.GetAvailablePort(t)),
+			resourceSpec: testbed.ResourceSpec{
+				ExpectedMaxCPU: 80,
+				ExpectedMaxRAM: 150,
+			},
+		},
+	}
+
+	processors := map[string]string{
+		"batch": `
+  batch:
+`,
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scenarios.Scenario10kItemsPerSecond(
+				t,
+				test.sender,
+				test.receiver,
+				test.resourceSpec,
+				contribPerfResultsSummary,
+				processors,
+				test.extensions,
+			)
+		})
+	}
+}
